@@ -81,8 +81,8 @@ segment main
         ret
 
 
-    ; compare characters one by one from strings
-    ; stored in SI and DI
+    ; compare two strings and check if they are equal
+    ; strings are pointed by SI and DI
     ; stores result in AX
     ; 0 - strings are the same
     ; 1 - strings are different
@@ -100,6 +100,15 @@ segment main
         ; keep the length of the string in CL
         mov cl, al
 
+        jmp compare_n
+
+
+    ; compare CL bytes in two strings and check if they are equal
+    ; strings are pointed by SI and DI
+    ; stores result in AX
+    ; 0 - strings are the same
+    ; 1 - strings are different
+    compare_n:
         ; compare characters one by one
         compare_loop:
             ; get letter from both strings
@@ -142,6 +151,11 @@ segment main
 ; data segment
 segment text
 
+    ; my string data structure looks like this
+    ; 1st byte  - capacity
+    ; 2nd byte  - length
+    ; 3..       - data
+
     string_welcome      db 33, 33, 'Welcome to simple calculator!', 13, 10, 13, 10
     string_prompt       db 2, 2, '> '
     string_newline      db 2, 2, 13, 10
@@ -149,6 +163,7 @@ segment text
 
     string_test         db 4, 4, 'test'
 
-    string_input        db 32   ; maximum length of user input
-                        db 0    ; actual length
-                        rb 32   ; reserve 32 bytes
+    ; reserve 32 bytes for user input
+    string_input        db 32
+                        db 0
+                        rb 32
