@@ -25,6 +25,12 @@ segment main
 
         main_loop:
             ; display the prompt
+            mov dx, word string_newline
+            call print
+
+            mov dx, word string_newline
+            call print
+
             mov dx, word string_prompt
             call print
 
@@ -32,28 +38,32 @@ segment main
             mov dx, word string_input
             call read
 
-            ; new line
-            mov dx, word string_newline
-            call print
-
-            mov dx, word string_input
-            call print
-
-            mov dx, word string_newline
-            call print
-
             ; parsing
             mov ax, 32
             mov bx, word string_input + 2
             call get_word_length
-            call exit
 
-            cmp ax, 4
-            je finish
+            ; check if input is valid
+            cmp ax, 0
+            je invalid_input
+            jmp main_loop
 
-            mov dx, word string_failure
-            call print
+            ; display message that the input is invalid
+            invalid_input:
+                mov dx, word string_newline
+                call print
 
+                ; compare input to 'exit' command
+                mov si, word string_input
+                mov di, word string_command_exit
+                call compare
+                cmp ax, 0
+                je exit     ; exit the application if requested
+
+                ; display invalid input error and jump back to loop
+                mov dx, word string_invalid_input
+                call print
+                jmp main_loop
 
         finish:
             ; exit the application with error code 0
@@ -68,6 +78,8 @@ segment main
         mov cl, byte [bx + 1]
         xor ch, ch
         mov bx, 1   ; stdout
+
+        ; print string using DOS 21h interrupt
         mov ah, 40h
         int 21h
         ret
@@ -75,6 +87,20 @@ segment main
 
     ; read from standard input to buffer passed in DX
     read:
+        ; get size of the input
+        mov cl, byte [string_input]
+
+        mov bx, string_input + 2
+
+        ; clear the buffer with zeroes
+        clear_loop:
+            mov [bx], byte 0
+            inc bx
+            dec cl
+            cmp cl, 0
+            ja clear_loop
+
+        ; read string using DOS 21h interrupt
         mov ah, 0ah
         int 21h
         ret
@@ -193,14 +219,13 @@ segment text
     ;     byte data[capacity];
     ; }
 
-    string_welcome      db 33, 33, 'Welcome to simple calculator!', 13, 10, 13, 10
-    string_prompt       db 2, 2, '> '
-    string_newline      db 2, 2, 13, 10
-    string_failure      db 6, 6, 'fail', 13, 10
-
-    string_test         db 4, 4, 'test'
+    string_welcome          db 29, 29, 'Welcome to simple calculator!'
+    string_prompt           db 2, 2, '> '
+    string_newline          db 2, 2, 13, 10
+    string_invalid_input    db 14, 14, 'Invalid input!'
+    string_command_exit     db 4, 4, 'exit'
 
     ; reserve 32 bytes for user input
     string_input        db 32
                         db 0
-                        times 32 db 0
+                        rb 32
