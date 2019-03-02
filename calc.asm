@@ -23,38 +23,37 @@ segment main
         mov dx, word string_welcome
         call print
 
-        ; display the prompt
-        mov dx, word string_prompt
-        call print
+        main_loop:
+            ; display the prompt
+            mov dx, word string_prompt
+            call print
 
-        ; read user input
-        mov dx, word string_input
-        call read
+            ; read user input
+            mov dx, word string_input
+            call read
 
-        ; new line
-        mov dx, word string_newline
-        call print
+            ; new line
+            mov dx, word string_newline
+            call print
 
-        ; echo user input
-        mov dx, word string_input
-        call print
+            mov dx, word string_input
+            call print
 
-        ; new line
-        mov dx, word string_newline
-        call print
+            mov dx, word string_newline
+            call print
 
-        ; compare strings
-        mov si, word string_input
-        mov di, word string_test
-        call compare
+            ; parsing
+            mov ax, 32
+            mov bx, word string_input + 2
+            call get_word_length
+            call exit
 
-        ; finish if both strings are equal
-        cmp ax, 0
-        je finish
+            cmp ax, 4
+            je finish
 
-        ; otherwise print failure message
-        mov dx, word string_failure
-        call print
+            mov dx, word string_failure
+            call print
+
 
         finish:
             ; exit the application with error code 0
@@ -112,8 +111,8 @@ segment main
         ; compare characters one by one
         compare_loop:
             ; get letter from both strings
-            mov al, [si]
-            mov ah, [di]
+            mov al, byte [si]
+            mov ah, byte [di]
 
             ; compare those letters
             cmp al, ah
@@ -141,7 +140,42 @@ segment main
             ret
 
 
-    ; exit application with status code passed in AL
+    ; return length of the first word found
+    ; and stores it in AX
+    ; BX - string
+    ; AX - maximum string length
+    ; return AX - word length
+    get_word_length:
+        mov cx, 0   ; character counter
+
+        get_word_length_loop:
+            mov dl, byte [bx]   ; load byte from string
+            cmp dl, ' '         ; check if the word has ended
+            je get_word_length_space_found
+
+            ; increment the counter and move the pointer
+            ; to the next character
+            inc cx
+            inc bx
+
+            ; if counter hasn't yet exceeded maximum length
+            ; jump to the beginning of the loop
+            cmp cx, ax
+            jb get_word_length_loop
+
+        mov ax, 0
+        ret
+
+        get_word_length_space_found:
+            mov ax, cx
+            ret
+
+    parse_input:
+        sub esp, 16
+
+
+    ; exit application with status code
+    ; AL - exit code
     exit:
         mov ah, 4ch
         int 21h
@@ -152,9 +186,12 @@ segment main
 segment text
 
     ; my string data structure looks like this
-    ; 1st byte  - capacity
-    ; 2nd byte  - length
-    ; 3..       - data
+    ;
+    ; struct string {
+    ;     byte capacity;
+    ;     byte length;
+    ;     byte data[capacity];
+    ; }
 
     string_welcome      db 33, 33, 'Welcome to simple calculator!', 13, 10, 13, 10
     string_prompt       db 2, 2, '> '
@@ -166,4 +203,4 @@ segment text
     ; reserve 32 bytes for user input
     string_input        db 32
                         db 0
-                        rb 32
+                        times 32 db 0
