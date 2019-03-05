@@ -14,10 +14,13 @@ segment main                                                ; main code segment
         mov     dx, word string_type_exit                   ; display 'type exit to terminate'
         call    print_string
 
-        sub esp, 6                                          ; allocate stack for 4 word variables
-        mov [esp + 2], word 10                              ; first number
-        mov [esp + 4], word 10                              ; second number
-        mov [esp + 6], word 10                              ; operator
+        sub     esp, 10                                     ; allocate stack for 4 word variables
+        mov     [esp + 2], word 10                          ; first number
+        mov     [esp + 4], word 10                          ; second number
+        mov     [esp + 6], word 10                          ; operator
+        mov     [esp + 8], word 0                           ; result
+        mov     [esp + 10], word 0                          ; is the result negative number
+
         main_loop:                                          ; main loop entry
             mov     dx, word string_newline                 ; display prompt
             call    print_string
@@ -46,12 +49,15 @@ segment main                                                ; main code segment
             cmp     [esp + 6], word 10
             je      print_invalid_operator
 
-            cmp     cx, 1                                   ; perform selected calculation
+            mov     [esp + 10], word 0                      ; reset the negative value flag
+            cmp     [esp + 6], word 1                       ; perform selected calculation
             je      operation_add
-            cmp     cx, 2
+            cmp     [esp + 6], word 2
             je      operation_subtract
-            cmp     cx, 3
+            cmp     [esp + 6], word 3
             je      operation_multiply
+
+            jmp finish                                      ; if for some reason no operator is valid - terminate
 
             print_invalid_first:
                 mov     dx, word string_invalid_first
@@ -69,13 +75,72 @@ segment main                                                ; main code segment
                 jmp     main_loop
 
             operation_add:
+                mov     ax, [esp + 2]                       ; add both numbers
+                mov     dx, [esp + 4]
+                add     ax, dx
+                mov     [esp + 8], ax                       ; and store the result on stack
+                jmp     print_result
+
             operation_subtract:
+                mov     ax, [esp + 2]
+                mov     dx, [esp + 4]
+                sub     ax, dx
+                js      operation_subtract_negative         ; if the result is negative
+
+                operation_subtract_finish:
+                    mov     [esp + 8], ax                   ; store the result
+                    jmp     print_result
+
+                operation_subtract_negative:
+                    mov     [esp + 10], word 1              ; save information that the number is negative
+                    mov     dx, [esp + 2]                   ; perform subtraction with flipped numberss
+                    mov     ax, [esp + 4]
+                    sub     ax, dx
+                    jmp     operation_subtract_finish
+
             operation_multiply:
+                mov     ax, [esp + 2]
+                mov     dx, [esp + 4]
+                mul     dl
+                mov     [esp + 8], ax
+                jmp     print_result
+
+            print_result:
+                mov     dx, [esp + 10]                      ; is the number negative
+
+                cmp     dx, 0
+                je      positive_result
+
+                negative_result:
+                    mov     dx, result_negative
+                    call    print_string
+
+                positive_result:
+                    mov     ax, [esp + 8]                   ; result
+                    mov     bx, result_twenty_numbers
+
+                    print_result_loop:
+                        cmp     byte [bx], 20
+                        je      print_result_not_twenty
+
+                        cmp     al, byte [bx]
+                        je      print_result_found
+                        inc     bx
+                        add     bl, byte [bx]
+                        inc     bx
+                        jmp     print_result_loop
+
+                print_result_found:
+                    mov     dx, bx
+                    inc     dx
+                    call    print_string
+
+                print_result_not_twenty:
 
             jmp     main_loop
 
         finish:
-            add     esp, 6                                  ; clear the stack
+            add     esp, 10                                 ; clear the stack
             mov     al, 0                                   ; exit program with error code 0
             jmp     exit
 
@@ -250,7 +315,7 @@ segment main                                                ; main code segment
         mov     [esp + 20], word 10                         ; second number
         mov     [esp + 22], word 10                         ; operator
 
-        mov     bx, string_zero                             ; store address to current analyzed number in BX
+        mov     bx, string_ten_numbers                      ; store address to current analyzed number in BX
         number_compare_loop:                                ; word comparing loop
             cmp     byte [bx], 0                            ; check if all the numbers have been checked
             je      invalid_input                           ; none of the numbers matched
@@ -293,7 +358,7 @@ segment main                                                ; main code segment
                     mov     [esp + 14], bx
                     mov     bx, [esp + 12]
                     mov     [esp + 16], bx
-                    mov     bx, string_zero                 ; reset number address
+                    mov     bx, string_ten_numbers          ; reset number address
                     jmp     number_compare_loop
 
                 second_number:
@@ -303,7 +368,7 @@ segment main                                                ; main code segment
                     mov     [esp + 14], bx
                     mov     bx, [esp + 8]
                     mov     [esp + 16], bx
-                    mov     bx, string_operator_plus
+                    mov     bx, string_operators
                     jmp     number_compare_loop
 
                 operator:
@@ -367,22 +432,46 @@ segment text
 
     string_command_exit     db 4, 'exit'
 
-    string_zero             db 4, 'zero', 0
-    string_one              db 3, 'one', 1
-    string_two              db 3, 'two', 2
-    string_three            db 5, 'three', 3
-    string_four             db 4, 'four', 4
-    string_five             db 4, 'five', 5
-    string_six              db 3, 'six', 6
-    string_seven            db 5, 'seven', 7
-    string_eight            db 5, 'eight', 8
-    string_nine             db 4, 'nine', 9
-    string_numbers_end      db 0
+    string_ten_numbers      db 4, 'zero', 0
+                            db 3, 'one', 1
+                            db 3, 'two', 2
+                            db 5, 'three', 3
+                            db 4, 'four', 4
+                            db 4, 'five', 5
+                            db 3, 'six', 6
+                            db 5, 'seven', 7
+                            db 5, 'eight', 8
+                            db 4, 'nine', 9
+                            db 0
 
-    string_operator_plus    db 4, 'plus', 1
-    string_operator_minus   db 5, 'minus', 2
-    string_operator_times   db 5, 'times', 3
-    string_operators_end    db 0
+    string_operators        db 4, 'plus', 1
+                            db 5, 'minus', 2
+                            db 5, 'times', 3
+                            db 0
+
+    result_negative         db 6, 'minus '
+    result_twenty_numbers   db 0, 4, 'zero'
+                            db 1, 3, 'one'
+                            db 2, 3, 'two'
+                            db 3, 5, 'three'
+                            db 4, 4, 'four'
+                            db 5, 4, 'five'
+                            db 6, 3, 'six'
+                            db 7, 5, 'seven'
+                            db 8, 5, 'eight'
+                            db 9, 4, 'nine'
+                            db 10, 3, 'ten'
+                            db 11, 6, 'eleven'
+                            db 12, 6, 'twelve'
+                            db 13, 8, 'thirteen'
+                            db 14, 8, 'fourteen'
+                            db 15, 7, 'fifteen'
+                            db 16, 7, 'sixteen'
+                            db 17, 9, 'seventeen'
+                            db 18, 8, 'eighteen'
+                            db 19, 8, 'nineteen'
+                            db 20
+
 
 numbers_end:
 
