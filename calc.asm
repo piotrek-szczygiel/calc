@@ -158,7 +158,7 @@ segment main                                                ; main code segment
     ; return operator in CX:
     ; 1 - plus
     ; 2 - minus
-    ; 4 - times
+    ; 3 - times
     parse_string_input:
         push    ebp                                         ; save current base pointer
         mov     ebp, esp                                    ; create stack frame
@@ -228,8 +228,12 @@ segment main                                                ; main code segment
                 xor     ah, ah
                 mov     al, byte [bx]                       ; and store it on stack
 
-                cmp     [esp + 18], word 10                 ; if first number is already defined
-                jne     second_number                       ; write to second variable
+                cmp     [esp + 18], word 10                 ; if first number is undefined
+                je      first_number
+                cmp     [esp + 20], word 10                 ; if second number is undefined
+                je      second_number
+                cmp     [esp + 22], word 10                 ; if operator is undefined
+                je      operator
 
                 first_number:
                     mov     [esp + 18], ax                  ; first parsed number
@@ -243,6 +247,16 @@ segment main                                                ; main code segment
 
                 second_number:
                     mov     [esp + 20], ax                  ; second parsed number
+
+                    mov     bx, [esp + 6]                   ; do the parsing loop again for second word
+                    mov     [esp + 14], bx
+                    mov     bx, [esp + 8]
+                    mov     [esp + 16], bx
+                    mov     bx, string_operator_plus
+                    jmp     number_compare_loop
+
+                operator:
+                    mov     [esp + 22], ax                  ; operator
 
         jmp     parse_string_input_finish_normally          ; finish the cycle
 
@@ -308,6 +322,11 @@ segment text
     string_eight            db 5, 'eight', 8
     string_nine             db 4, 'nine', 9
     string_numbers_end      db 0
+
+    string_operator_plus    db 4, 'plus', 1
+    string_operator_minus   db 5, 'minus', 2
+    string_operator_times   db 5, 'times', 3
+    string_operators_end    db 0
 
 numbers_end:
 
