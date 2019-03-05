@@ -14,6 +14,10 @@ segment main                                                ; main code segment
         mov     dx, word string_type_exit                   ; display 'type exit to terminate'
         call    print_string
 
+        sub esp, 6                                          ; allocate stack for 4 word variables
+        mov [esp + 2], word 10                              ; first number
+        mov [esp + 4], word 10                              ; second number
+        mov [esp + 6], word 10                              ; operator
         main_loop:                                          ; main loop entry
             mov     dx, word string_newline                 ; display prompt
             call    print_string
@@ -28,10 +32,48 @@ segment main                                                ; main code segment
             call    parse_string_input                      ; parse user input
             jc      finish                                  ; terminate program if exit was entered
 
+            mov     [esp + 2], ax                           ; store parsing result on stack
+            mov     [esp + 4], dx
+            mov     [esp + 6], cx
+
+            cmp     [esp + 2], word 10                      ; print error messages
+            je      print_invalid_first
+            cmp     [esp + 4], word 10
+            je      print_invalid_second
+            cmp     [esp + 6], word 10
+            je      print_invalid_operator
+
+            cmp     cx, 1                                   ; perform selected calculation
+            je      operation_add
+            cmp     cx, 2
+            je      operation_subtract
+            cmp     cx, 3
+            je      operation_multiply
+
+            print_invalid_first:
+                mov     dx, word string_invalid_first
+                call    print_string
+                jmp     main_loop
+
+            print_invalid_second:
+                mov     dx, word string_invalid_second
+                call    print_string
+                jmp     main_loop
+
+            print_invalid_operator:
+                mov     dx, word string_invalid_operator
+                call    print_string
+                jmp     main_loop
+
+            operation_add:
+            operation_subtract:
+            operation_multiply:
+
             jmp     main_loop
 
-        finish:                                             ; exit application with error code 0
-            mov     al, 0
+        finish:
+            add     esp, 6                                  ; clear the stack
+            mov     al, 0                                   ; exit program with error code 0
             jmp     exit
 
 
@@ -305,8 +347,11 @@ segment text
     ; }
     string_welcome          db 31, 'Welcome to simple calculator!', 13, 10
     string_type_exit        db 43, 'Type ', 39, 'exit', 39, ' to terminate the application.', 13, 10
-    string_prompt           db 18, 'Enter expression> '
+    string_prompt           db 18, 'Enter expression: '
     string_invalid_input    db 16, 'Invalid input!', 13, 10
+    string_invalid_first    db 23, 'Invalid first number!', 13, 10
+    string_invalid_second   db 24, 'Invalid second number!', 13, 10
+    string_invalid_operator db 19, 'Invalid operator!', 13, 10
     string_newline          db 2, 13, 10
 
     string_command_exit     db 4, 'exit'
