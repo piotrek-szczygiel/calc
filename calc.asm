@@ -14,7 +14,6 @@ segment main                                                ; main code segment
         mov dx, word string_type_exit                       ; display 'type exit to terminate'
         call print_string
 
-        sub esp, 12                                         ; allocate space on stack for 6 variables
         main_loop:                                          ; main loop entry
             mov dx, word string_newline                     ; display prompt
             call print_string
@@ -26,72 +25,15 @@ segment main                                                ; main code segment
             mov dx, word string_newline                     ; move to next line
             call print_string
 
-            mov bx, word string_input + 1
-            mov [esp + 2], bx                               ; first word address
-            call get_word_length                            ; check if first word exists
-            cmp ax, 0
-            je invalid_input
-            mov [esp + 4], ax                               ; first word length
+            call parse_string_input                         ; parse user input
+            cmp ax, 1                                       ; terminate the application if exit is entered
+            je finish
 
-            inc ax                                          ; skip the space
-            mov bx, word string_input + 1
-            add bx, ax
-            mov [esp + 6], bx                               ; second word address
-            call get_word_length                            ; check if second word exists
-            cmp ax, 0
-            je invalid_input
-            mov [esp + 8], ax                               ; second word length
-
-            mov bx, word string_input + 1
-            add bx, [esp + 4]                               ; skip to the third word by adding to base
-            add bx, [esp + 8]                               ; address combined length of two previous words
-            add bx, 2                                       ; skip two spaces
-            mov [esp + 10], bx                              ; third word address
-            call get_word_length                            ; check if third word exists
-            cmp ax, 0
-            je invalid_input
-            mov [esp + 12], ax                              ; third word length
-
-            ; display parsed words
-            mov dx, [esp + 2]
-            mov cx, [esp + 4]
-            call print_n
-
-            mov dx, string_newline
-            call print_string
-
-            mov dx, [esp + 6]
-            mov cx, [esp + 8]
-            call print_n
-
-            mov dx, string_newline
-            call print_string
-
-            mov dx, [esp + 10]
-            mov cx, [esp + 12]
-            call print_n
-
-            mov dx, string_newline
-            call print_string
-
-            jmp main_loop                                   ; go back to main loop
-
-            invalid_input:                                  ; display message that the input is invalid
-                add esp, 12                                 ; remove those 6 variables from stack
-
-                mov si, word string_input
-                mov di, word string_command_exit
-                call compare_strings                        ; compare input to 'exit' command
-                cmp ax, 0
-                je finish                                   ; exit the application if requested
-
-                mov dx, word string_invalid_input           ; display invalid input error and jump back to loop
-                call print_string
-                jmp main_loop
+            jmp main_loop
 
         finish:                                             ; exit application with error code 0
             mov al, 0
-            call exit
+            jmp exit
 
 
     ; print string passed in DX
@@ -210,12 +152,94 @@ segment main                                                ; main code segment
             ret
 
 
-    ; exit application with status code
+    ; parse user input stored in string_input buffer
+    ; return 1 in AX if user wants to terminate the application
+    parse_string_input:
+        push ebp                                            ; save current base pointer
+        mov ebp, esp                                        ; create stack frame
+        sub esp, 12                                         ; reserve space for 6 word variables
+
+        mov bx, word string_input + 1
+        mov [esp + 2], bx                                   ; first word address
+        call get_word_length                                ; check if first word exists
+        cmp ax, 0
+        je invalid_input
+        mov [esp + 4], ax                                   ; first word length
+
+        inc ax                                              ; skip the space
+        mov bx, word string_input + 1
+        add bx, ax
+        mov [esp + 6], bx                                   ; second word address
+        call get_word_length                                ; check if second word exists
+        cmp ax, 0
+        je invalid_input
+        mov [esp + 8], ax                                   ; second word length
+
+        mov bx, word string_input + 1
+        add bx, [esp + 4]                                   ; skip to the third word by adding to base
+        add bx, [esp + 8]                                   ; address combined length of two previous words
+        add bx, 2                                           ; skip two spaces
+        mov [esp + 10], bx                                  ; third word address
+        call get_word_length                                ; check if third word exists
+        cmp ax, 0
+        je invalid_input
+        mov [esp + 12], ax                                  ; third word length
+
+        ; display parsed words
+        mov dx, [esp + 2]
+        mov cx, [esp + 4]
+        call print_n
+
+        mov dx, string_newline
+        call print_string
+
+        mov dx, [esp + 6]
+        mov cx, [esp + 8]
+        call print_n
+
+        mov dx, string_newline
+        call print_string
+
+        mov dx, [esp + 10]
+        mov cx, [esp + 12]
+        call print_n
+
+        mov dx, string_newline
+        call print_string
+
+        jmp parse_string_input_finish_normally              ; finish the cycle
+
+        invalid_input:                                      ; display message that the input is invalid
+            mov si, word string_input
+            mov di, word string_command_exit
+            call compare_strings                            ; compare input to 'exit' command
+            cmp ax, 0
+            je parse_string_input_finish_terminate          ; let the main loop know we want to terminate the program
+
+            mov dx, word string_invalid_input               ; display invalid input error and jump back to loop
+            call print_string
+
+            jmp parse_string_input_finish_normally          ; finish the cycle without terminating
+
+        parse_string_input_finish_normally:
+            mov ax, 0                                       ; return 0 in AX to let main loop know we want to continue
+            jmp parse_string_input_finish
+
+        parse_string_input_finish_terminate:
+            mov ax, 1                                       ; return 1 in AX to let main loop know we want to exit
+            jmp parse_string_input_finish
+
+        parse_string_input_finish:
+            mov esp, ebp                                    ; clear current stack frame
+            pop ebp                                         ; restore previous base pointer
+            ret                                             ; return
+
+
+    ; exit application with exit status code
     ; AL - exit code
     exit:
         mov ah, 4ch
         int 21h
-        ret
 
 
 ; data segment
@@ -233,7 +257,6 @@ segment text
 
     string_command_exit     db 4, 'exit'
 
-    ; reserve 32 bytes for reading user input using DOS interrupt
-                        db 64   ; buffer length
-    string_input        db 0    ; read string length
-                        rb 64   ; string data
+                        db 64                               ; buffer length
+    string_input        db 0                                ; read string length
+                        rb 64                               ; string data
