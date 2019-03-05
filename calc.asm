@@ -25,33 +25,76 @@ segment main
 
         main_loop:
             ; display the prompt
-            mov dx, word string_newline
-            call print
-
-            mov dx, word string_newline
-            call print
-
             mov dx, word string_prompt
             call print
 
-            ; read user input
-            mov dx, word string_input
+            ; read user input into string_input buffer
             call read
+            mov dx, word string_newline
+            call print
 
-            ; parsing
-            mov ax, 32
-            mov bx, word string_input + 2
+            ; reserve space for 6 variables
+            sub esp, 12
+
+            ; check if first word exists
+            mov bx, word string_input + 1
+            mov [esp + 2], bx       ; first word address
             call get_word_length
-
-            ; check if input is valid
             cmp ax, 0
             je invalid_input
+            mov [esp + 4], ax       ; first word length
+
+            ; check if second word exists
+            inc ax                  ; skip the space
+            mov bx, word string_input + 1
+            add bx, ax
+            mov [esp + 6], bx       ; second word address
+            call get_word_length
+            cmp ax, 0
+            je invalid_input
+            mov [esp + 8], ax       ; second word length
+
+            ; check if third word exists
+            mov bx, word string_input + 1
+            add bx, [esp + 4]       ; skip to the third word by adding to base
+            add bx, [esp + 8]       ; address combined length of two previous words
+            add bx, 2               ; skip two spaces
+            mov [esp + 10], bx      ; third word address
+            call get_word_length
+            cmp ax, 0
+            je invalid_input
+            mov [esp + 12], ax      ; third word length
+
+            ; display parsed words
+            mov dx, [esp + 2]
+            mov cx, [esp + 4]
+            call print_n
+
+            mov dx, string_newline
+            call print
+
+            mov dx, [esp + 6]
+            mov cx, [esp + 8]
+            call print_n
+
+            mov dx, string_newline
+            call print
+
+            mov dx, [esp + 10]
+            mov cx, [esp + 12]
+            call print_n
+
+            mov dx, string_newline
+            call print
+
+            ; clear the stack and go back to loop
+            add esp, 12
             jmp main_loop
 
             ; display message that the input is invalid
             invalid_input:
-                mov dx, word string_newline
-                call print
+                ; clear the stack
+                add esp, 12
 
                 ; compare input to 'exit' command
                 mov si, word string_input
@@ -74,12 +117,19 @@ segment main
     ; print string passed in DX
     print:
         mov bx, dx
-        add dx, 2
-        mov cl, byte [bx + 1]
+        mov cl, byte [bx]   ; get string lenght
         xor ch, ch
-        mov bx, 1   ; stdout
+        add dx, 1           ; set beginning of a string
+        call print_n
+        ret
 
-        ; print string using DOS 21h interrupt
+
+    ; print string using DOS 21h interrupt
+    ; BX - file handle
+    ; CX - number of bytes to write
+    ; DX - string
+    print_n:
+        mov bx, 1   ; stdout
         mov ah, 40h
         int 21h
         ret
@@ -87,12 +137,11 @@ segment main
 
     ; read from standard input to buffer passed in DX
     read:
-        ; get size of the input
-        mov cl, byte [string_input]
+        mov dx, string_input - 1            ; set string pointer
+        mov cl, byte [string_input - 1]     ; get maximum length of the input
+        mov bx, string_input + 1            ; set beginning address of the input for clearing
 
-        mov bx, string_input + 2
-
-        ; clear the buffer with zeroes
+        ; fill the buffer with zeroes
         clear_loop:
             mov [bx], byte 0
             inc bx
@@ -101,6 +150,7 @@ segment main
             ja clear_loop
 
         ; read string using DOS 21h interrupt
+        ; DX - buffer
         mov ah, 0ah
         int 21h
         ret
@@ -112,15 +162,15 @@ segment main
     ; 0 - strings are the same
     ; 1 - strings are different
     compare:
-        mov al, [si + 1]    ; length of first string
-        mov ah, [di + 1]    ; length of second string
+        mov al, [si]    ; length of first string
+        mov ah, [di]    ; length of second string
 
         cmp al, ah              ; compare length of both strings
         jne compare_mismatch    ; if lengths are different strings are also different
 
         ; position both pointers on first letter
-        add si, 2
-        add di, 2
+        add si, 1
+        add di, 1
 
         ; keep the length of the string in CL
         mov cl, al
@@ -128,7 +178,7 @@ segment main
         jmp compare_n
 
 
-    ; compare CL bytes in two strings and check if they are equal
+    ; compare CL bytes in two buffers and check if they are equal
     ; strings are pointed by SI and DI
     ; stores result in AX
     ; 0 - strings are the same
@@ -169,24 +219,26 @@ segment main
     ; return length of the first word found
     ; and stores it in AX
     ; BX - string
-    ; AX - maximum string length
     ; return AX - word length
     get_word_length:
-        mov cx, 0   ; character counter
+        mov al, [string_input - 1]  ; maximum string length
+        mov cx, 0                   ; character counter
 
         get_word_length_loop:
             mov dl, byte [bx]   ; load byte from string
             cmp dl, ' '         ; check if the word has ended
             je get_word_length_space_found
+            cmp dl, 13
+            je get_word_length_space_found
 
             ; increment the counter and move the pointer
             ; to the next character
-            inc cx
+            inc cl
             inc bx
 
             ; if counter hasn't yet exceeded maximum length
             ; jump to the beginning of the loop
-            cmp cx, ax
+            cmp cl, al
             jb get_word_length_loop
 
         mov ax, 0
@@ -195,9 +247,6 @@ segment main
         get_word_length_space_found:
             mov ax, cx
             ret
-
-    parse_input:
-        sub esp, 16
 
 
     ; exit application with status code
@@ -211,21 +260,18 @@ segment main
 ; data segment
 segment text
 
-    ; my string data structure looks like this
-    ;
     ; struct string {
-    ;     byte capacity;
     ;     byte length;
-    ;     byte data[capacity];
+    ;     byte data[length];
     ; }
 
-    string_welcome          db 29, 29, 'Welcome to simple calculator!'
-    string_prompt           db 2, 2, '> '
-    string_newline          db 2, 2, 13, 10
-    string_invalid_input    db 14, 14, 'Invalid input!'
-    string_command_exit     db 4, 4, 'exit'
+    string_welcome          db 33, 'Welcome to simple calculator!', 13, 10, 13, 10
+    string_prompt           db 2, '> '
+    string_newline          db 2, 13, 10
+    string_invalid_input    db 16, 'Invalid input!', 13, 10
+    string_command_exit     db 4, 'exit'
 
-    ; reserve 32 bytes for user input
-    string_input        db 32
-                        db 0
-                        rb 32
+    ; reserve 32 bytes for reading user input using DOS interrupt
+                        db 64   ; buffer length
+    string_input        db 0    ; read string length
+                        rb 64   ; string data
