@@ -120,7 +120,7 @@ segment main                                                ; main code segment
                     mov     bx, result_twenty_numbers
 
                     print_result_loop:
-                        cmp     byte [bx], 20
+                        cmp     byte [bx], 255
                         je      print_result_not_twenty
 
                         cmp     al, byte [bx]
@@ -136,6 +136,7 @@ segment main                                                ; main code segment
                     call    print_string
 
                 print_result_not_twenty:
+                    ; TODO: modulo robione here
 
             jmp     main_loop
 
@@ -317,7 +318,7 @@ segment main                                                ; main code segment
 
         mov     bx, string_ten_numbers                      ; store address to current analyzed number in BX
         number_compare_loop:                                ; word comparing loop
-            cmp     byte [bx], 0                            ; check if all the numbers have been checked
+            cmp     [bx], byte 255                          ; check if all the numbers have been checked
             je      invalid_input                           ; none of the numbers matched
 
             mov     ax, word [esp + 16]                     ; compare length of input with length of current
@@ -383,10 +384,11 @@ segment main                                                ; main code segment
             cmp     ax, 0
             je      parse_string_input_finish_terminate     ; let the main loop know we want to terminate the program
 
+            cmp     [esp + 24], word 3                      ; don't display invalid input if all words are present
+            je      parse_string_input_finish_normally
+
             mov     dx, word string_invalid_input           ; display invalid input error and jump back to loop
             call    print_string
-
-            jmp     parse_string_input_finish_normally      ; finish the cycle without terminating
 
         parse_string_input_finish_normally:
             mov     ax, [esp + 18]                          ; first number
@@ -442,12 +444,12 @@ segment text
                             db 5, 'seven', 7
                             db 5, 'eight', 8
                             db 4, 'nine', 9
-                            db 0
+                            db 255
 
     string_operators        db 4, 'plus', 1
                             db 5, 'minus', 2
                             db 5, 'times', 3
-                            db 0
+                            db 255
 
     result_negative         db 6, 'minus '
     result_twenty_numbers   db 0, 4, 'zero'
@@ -470,7 +472,7 @@ segment text
                             db 17, 9, 'seventeen'
                             db 18, 8, 'eighteen'
                             db 19, 8, 'nineteen'
-                            db 20
+                            db 255
 
 
 numbers_end:
