@@ -1,7 +1,7 @@
 ; Piotr Szczygieł - Assemblery 2019
 ; Simple calculator
 format MZ                                                   ; DOS MZ executable
-stack 256                                                   ; set stack size to 256 bytes
+stack 64                                                    ; set stack size to 256 bytes
 entry main:start                                            ; specify application entry point
 
 segment main                                                ; main code segment
@@ -14,12 +14,13 @@ segment main                                                ; main code segment
         mov     dx, word string_type_exit                   ; display 'type exit to terminate'
         call    print_string
 
-        sub     esp, 10                                     ; allocate stack for 4 word variables
+        sub     esp, 12                                     ; allocate stack for 4 word variables
         mov     [esp + 2], word 10                          ; first number
         mov     [esp + 4], word 10                          ; second number
         mov     [esp + 6], word 10                          ; operator
         mov     [esp + 8], word 0                           ; result
         mov     [esp + 10], word 0                          ; is the result negative number
+        mov     [esp + 12], word 0                          ; tens of the result
 
         main_loop:                                          ; main loop entry
             mov     dx, word string_newline                 ; display prompt
@@ -42,46 +43,46 @@ segment main                                                ; main code segment
             mov     [esp + 4], dx                           ; second number
             mov     [esp + 6], bx                           ; operator
 
-            cmp     [esp + 2], word 10                      ; print error messages
+            cmp     [esp + 2], word 10                      ; jump to error message printing
             je      print_invalid_first
             cmp     [esp + 4], word 10
             je      print_invalid_second
             cmp     [esp + 6], word 10
             je      print_invalid_operator
 
-            mov     [esp + 10], word 0                      ; reset the negative value flag
+            mov     [esp + 10], word 0                      ; clear the negative value boolean
             cmp     [esp + 6], word 1                       ; perform selected calculation
-            je      operation_add
+            je      operation_add                           ; addition
             cmp     [esp + 6], word 2
-            je      operation_subtract
+            je      operation_subtract                      ; subtraction
             cmp     [esp + 6], word 3
-            je      operation_multiply
+            je      operation_multiply                      ; multiplication
 
             jmp finish                                      ; if for some reason no operator is valid - terminate
 
-            print_invalid_first:
+            print_invalid_first:                            ; display message about first number being invalid
                 mov     dx, word string_invalid_first
                 call    print_string
                 jmp     main_loop
 
-            print_invalid_second:
+            print_invalid_second:                           ; display message about second number being invalid
                 mov     dx, word string_invalid_second
                 call    print_string
                 jmp     main_loop
 
-            print_invalid_operator:
+            print_invalid_operator:                         ; display message about operator being invalid
                 mov     dx, word string_invalid_operator
                 call    print_string
                 jmp     main_loop
 
-            operation_add:
+            operation_add:                                  ; perform addition
                 mov     ax, [esp + 2]                       ; add both numbers
                 mov     dx, [esp + 4]
                 add     ax, dx
                 mov     [esp + 8], ax                       ; and store the result on stack
                 jmp     print_result
 
-            operation_subtract:
+            operation_subtract:                             ; perform subtraction
                 mov     ax, [esp + 2]
                 mov     dx, [esp + 4]
                 sub     ax, dx
@@ -98,14 +99,14 @@ segment main                                                ; main code segment
                     sub     ax, dx
                     jmp     operation_subtract_finish
 
-            operation_multiply:
+            operation_multiply:                             ; perform multiplication
                 mov     ax, [esp + 2]
                 mov     dx, [esp + 4]
                 mul     dl
                 mov     [esp + 8], ax
                 jmp     print_result
 
-            print_result:
+            print_result:                                   ; print the result
                 mov     dx, [esp + 10]                      ; is the number negative
 
                 cmp     dx, 0
@@ -119,31 +120,70 @@ segment main                                                ; main code segment
                     mov     ax, [esp + 8]                   ; result
                     mov     bx, result_twenty_numbers
 
-                    print_result_loop:
-                        cmp     byte [bx], 255
-                        je      print_result_not_twenty
+                    cmp     ax, 20                          ; jump if result is bigger than 19
+                    jae     print_result_above_nineteen
+                    call    find_and_print
+                    mov     dx, string_newline
+                    call    print_string
+                    jmp     main_loop
 
-                        cmp     al, byte [bx]
-                        je      print_result_found
-                        inc     bx
-                        add     bl, byte [bx]
-                        inc     bx
-                        jmp     print_result_loop
+                print_result_above_nineteen:
+                    mov     bx, 10                          ; getting units and tens from number
+                    div     bx
+                    mov     [esp + 8], dx                   ; store units
+                    mov     [esp + 12], ax                  ; store tens
 
-                print_result_found:
-                    mov     dx, bx
-                    inc     dx
+                    mov     bx, result_round_numbers        ; print tens
+                    call    find_and_print
+                    cmp     dx, 1
+                    je      main_loop
+
+                    mov     dx, string_hyphen               ; print hyphen
                     call    print_string
 
-                print_result_not_twenty:
-                    ; TODO: modulo robione here
+                    mov     bx, result_twenty_numbers       ; print units
+                    mov     ax, [esp + 8]
+                    call    find_and_print
+
+                    mov     dx, string_newline              ; print newline
+                    call    print_string
+
 
             jmp     main_loop
 
-        finish:
+        finish:                                             ; clean up and exit
             add     esp, 10                                 ; clear the stack
             mov     al, 0                                   ; exit program with error code 0
             jmp     exit
+
+
+    ; BX - beginning of a table, that ends with 0xFF byte
+    ; AX - searched value
+    ; stores result in CX
+    ; 0 - found and printed
+    ; 1 - not found
+    find_and_print:
+        find_and_print_loop:                                  ; print result if its less than 20
+            cmp     byte [bx], 255
+            je      find_and_print_not_found
+
+            cmp     al, byte [bx]
+            je      find_and_print_found
+            inc     bx
+            add     bl, byte [bx]
+            inc     bx
+            jmp     find_and_print_loop
+
+        find_and_print_found:
+            mov     dx, bx
+            inc     dx
+            call    print_string
+            mov     cx, 0
+            ret
+
+        find_and_print_not_found:
+            mov     cx, 1
+            ret
 
 
     ; print string passed in DX
@@ -434,6 +474,7 @@ segment text
 
     string_command_exit     db 4, 'exit'
 
+    ; TODO move actual numeric value to beginning for consistency
     string_ten_numbers      db 4, 'zero', 0
                             db 3, 'one', 1
                             db 3, 'two', 2
@@ -474,9 +515,18 @@ segment text
                             db 19, 8, 'nineteen'
                             db 255
 
+    result_round_numbers    db 2, 6, 'twenty'
+                            db 3, 6, 'thirty'
+                            db 4, 5, 'forty'
+                            db 5, 5, 'fifty'
+                            db 6, 5, 'sixty'
+                            db 7, 7, 'seventy'
+                            db 8, 6, 'eighty'
+                            db 9, 6, 'ninety'
+                            db 255
 
-numbers_end:
+    string_hyphen           db 1, '-'
 
-                            db 64                           ; buffer length
+                            db 32                           ; buffer length
     string_input            db 0                            ; read string length
-                            rb 64                           ; string data
+                            rb 32                           ; string data
