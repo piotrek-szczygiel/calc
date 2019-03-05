@@ -32,9 +32,12 @@ segment main                                                ; main code segment
             call    parse_string_input                      ; parse user input
             jc      finish                                  ; terminate program if exit was entered
 
-            mov     [esp + 2], ax                           ; store parsing result on stack
-            mov     [esp + 4], dx
-            mov     [esp + 6], cx
+            cmp cx, 3
+            jne main_loop
+
+            mov     [esp + 2], ax                           ; first number
+            mov     [esp + 4], dx                           ; second number
+            mov     [esp + 6], bx                           ; operator
 
             cmp     [esp + 2], word 10                      ; print error messages
             je      print_invalid_first
@@ -195,16 +198,19 @@ segment main                                                ; main code segment
 
     ; parse user input stored in string_input buffer
     ; set carry flag if user wants to terminate the program
+    ; return word counter in CX
     ; return first number in AX
     ; return second number in DX
-    ; return operator in CX:
+    ; return operator in BX:
     ; 1 - plus
     ; 2 - minus
     ; 3 - times
     parse_string_input:
         push    ebp                                         ; save current base pointer
         mov     ebp, esp                                    ; create stack frame
-        sub     esp, 22                                     ; reserve space for 11 word variables
+        sub     esp, 24                                     ; reserve space for 12 word variables
+
+        mov     [esp + 24], word 0                          ; no words are present yet
 
         mov     bx, word string_input + 1
         mov     [esp + 2], word bx                          ; first word address
@@ -212,6 +218,7 @@ segment main                                                ; main code segment
         cmp     ax, 0
         je      invalid_input
         mov     [esp + 4], word ax                          ; first word length
+        mov     [esp + 24], word 1                          ; one word is present
 
         inc     ax                                          ; skip the space
         mov     bx, word string_input + 1
@@ -221,6 +228,7 @@ segment main                                                ; main code segment
         cmp     ax, 0
         je      invalid_input
         mov     [esp + 8], ax                               ; second word length
+        mov     [esp + 24], word 2                          ; second word is present
 
         mov     bx, word string_input + 1
         add     bx, word [esp + 4]                          ; skip to the third word by adding to base
@@ -231,6 +239,7 @@ segment main                                                ; main code segment
         cmp     ax, 0
         je      invalid_input
         mov     [esp + 12], word ax                         ; third word length
+        mov     [esp + 24], word 3                          ; third word is present
 
         mov     bx, [esp + 2]
         mov     [esp + 14], bx                              ; current word address
@@ -315,9 +324,11 @@ segment main                                                ; main code segment
             jmp     parse_string_input_finish_normally      ; finish the cycle without terminating
 
         parse_string_input_finish_normally:
-            mov     ax, [esp + 18]                          ; store results in AX, CX and DX
-            mov     dx, [esp + 20]
-            mov     cx, [esp + 22]
+            mov     ax, [esp + 18]                          ; first number
+            mov     bx, [esp + 22]                          ; operator
+            mov     cx, [esp + 24]                          ; word counter
+            mov     dx, [esp + 20]                          ; second number
+
             clc                                             ; cleared carry flag means user wants to continue
             jmp     parse_string_input_finish
 
