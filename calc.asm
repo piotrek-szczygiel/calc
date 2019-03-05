@@ -26,8 +26,7 @@ segment main                                                ; main code segment
             call print_string
 
             call parse_string_input                         ; parse user input
-            cmp ax, 1                                       ; terminate the application if exit is entered
-            je finish
+            jc finish                                       ; terminate program if exit was entered
 
             jmp main_loop
 
@@ -58,9 +57,9 @@ segment main                                                ; main code segment
 
     ; read from standard input to buffer passed in DX
     read_string_input:
-        mov dx, string_input - 1                            ; set string pointer
+        mov dx, word string_input - 1                       ; set string pointer
         mov cl, byte [string_input - 1]                     ; get maximum length of the input
-        mov bx, string_input + 1                            ; set beginning address of the input for clearing
+        mov bx, word string_input + 1                       ; set beginning address of the input for clearing
 
         clear_loop:                                         ; fill the string_input data with zeroes
             mov [bx], byte 0
@@ -80,8 +79,8 @@ segment main                                                ; main code segment
     ; 0 - strings are the same
     ; 1 - strings are different
     compare_strings:
-        mov al, [si]                                        ; length of first string
-        mov ah, [di]                                        ; length of second string
+        mov al, byte [si]                                   ; length of first string
+        mov ah, byte [di]                                   ; length of second string
 
         cmp al, ah                                          ; compare length of both strings
         jne compare_mismatch                                ; if lengths are different strings are also different
@@ -128,7 +127,7 @@ segment main                                                ; main code segment
     ; BX - string
     ; return AX - word length
     get_word_length:
-        mov al, [string_input - 1]                          ; maximum string length
+        mov al, byte [string_input - 1]                     ; maximum string length
         mov cx, 0                                           ; character counter
 
         get_word_length_loop:
@@ -153,59 +152,97 @@ segment main                                                ; main code segment
 
 
     ; parse user input stored in string_input buffer
-    ; return 1 in AX if user wants to terminate the application
+    ; set carry flag if user wants to terminate the program
+    ; return first number in AX
+    ; return second number in DX
+    ; return operator in CX:
+    ; 1 - plus
+    ; 2 - minus
+    ; 4 - times
     parse_string_input:
         push ebp                                            ; save current base pointer
         mov ebp, esp                                        ; create stack frame
-        sub esp, 12                                         ; reserve space for 6 word variables
+        sub esp, 22                                         ; reserve space for 11 word variables
 
         mov bx, word string_input + 1
-        mov [esp + 2], bx                                   ; first word address
+        mov [esp + 2], word bx                              ; first word address
         call get_word_length                                ; check if first word exists
         cmp ax, 0
         je invalid_input
-        mov [esp + 4], ax                                   ; first word length
+        mov [esp + 4], word ax                              ; first word length
 
         inc ax                                              ; skip the space
         mov bx, word string_input + 1
         add bx, ax
-        mov [esp + 6], bx                                   ; second word address
+        mov [esp + 6], word bx                              ; second word address
         call get_word_length                                ; check if second word exists
         cmp ax, 0
         je invalid_input
         mov [esp + 8], ax                                   ; second word length
 
         mov bx, word string_input + 1
-        add bx, [esp + 4]                                   ; skip to the third word by adding to base
-        add bx, [esp + 8]                                   ; address combined length of two previous words
+        add bx, word [esp + 4]                              ; skip to the third word by adding to base
+        add bx, word [esp + 8]                              ; address combined length of two previous words
         add bx, 2                                           ; skip two spaces
-        mov [esp + 10], bx                                  ; third word address
+        mov [esp + 10], word bx                             ; third word address
         call get_word_length                                ; check if third word exists
         cmp ax, 0
         je invalid_input
-        mov [esp + 12], ax                                  ; third word length
+        mov [esp + 12], word ax                             ; third word length
 
-        ; display parsed words
-        mov dx, [esp + 2]
-        mov cx, [esp + 4]
-        call print_n
+        mov bx, [esp + 2]
+        mov [esp + 14], bx                                  ; current word address
+        mov bx, [esp + 4]
+        mov [esp + 16], bx                                  ; current word length
 
-        mov dx, string_newline
-        call print_string
+        mov [esp + 18], word 10                             ; first number, 10 means undefined
+        mov [esp + 20], word 10                             ; second number
+        mov [esp + 22], word 10                             ; operator
 
-        mov dx, [esp + 6]
-        mov cx, [esp + 8]
-        call print_n
+        mov bx, string_zero                                 ; store address to current analyzed number in BX
+        number_compare_loop:                                ; word comparing loop
+            cmp byte [bx], 0                                ; check if all the numbers have been checked
+            je invalid_input                                ; none of the numbers matched
 
-        mov dx, string_newline
-        call print_string
+            mov ax, word [esp + 16]                         ; compare length of input with length of current
+            mov cl, byte [bx]                               ; number being analyzed
+            xor ch, ch
+            cmp ax, cx
+            jne wrong_number
 
-        mov dx, [esp + 10]
-        mov cx, [esp + 12]
-        call print_n
+            mov si, word [esp + 14]                         ; if words are the same length compare them
+            mov di, word bx                                 ; byte by byte
+            inc di
+            call compare_n
+            cmp ax, 0
+            je number_compare_loop_found                    ; comparison was successful
 
-        mov dx, string_newline
-        call print_string
+            wrong_number:                                   ; no match in this iteration
+                add bl, byte [bx]
+                add bx, 2
+                jmp number_compare_loop
+
+            number_compare_loop_found:                      ; number matched to current word
+                add bl, byte [bx]                           ; move to the end of the found word
+                inc bx                                      ; where the number value is stored
+                xor ah, ah
+                mov al, byte [bx]                           ; and store it on stack
+
+                cmp [esp + 18], word 10                     ; if first number is already defined
+                jne second_number                           ; write to second variable
+
+                first_number:
+                    mov [esp + 18], ax                      ; first parsed number
+
+                    mov bx, [esp + 10]                      ; do the parsing loop again for third word
+                    mov [esp + 14], bx
+                    mov bx, [esp + 12]
+                    mov [esp + 16], bx
+                    mov bx, string_zero                     ; reset number address
+                    jmp number_compare_loop
+
+                second_number:
+                    mov [esp + 20], ax                      ; second parsed number
 
         jmp parse_string_input_finish_normally              ; finish the cycle
 
@@ -222,11 +259,14 @@ segment main                                                ; main code segment
             jmp parse_string_input_finish_normally          ; finish the cycle without terminating
 
         parse_string_input_finish_normally:
-            mov ax, 0                                       ; return 0 in AX to let main loop know we want to continue
+            mov ax, [esp + 18]                              ; store results in AX, CX and DX
+            mov dx, [esp + 20]
+            mov cx, [esp + 22]
+            clc                                             ; cleared carry flag means user wants to continue
             jmp parse_string_input_finish
 
         parse_string_input_finish_terminate:
-            mov ax, 1                                       ; return 1 in AX to let main loop know we want to exit
+            stc                                             ; set carry flag means user wants to terminate the program
             jmp parse_string_input_finish
 
         parse_string_input_finish:
@@ -256,6 +296,20 @@ segment text
     string_newline          db 2, 13, 10
 
     string_command_exit     db 4, 'exit'
+
+    string_zero             db 4, 'zero', 0
+    string_one              db 3, 'one', 1
+    string_two              db 3, 'two', 2
+    string_three            db 5, 'three', 3
+    string_four             db 4, 'four', 4
+    string_five             db 4, 'five', 5
+    string_six              db 3, 'six', 6
+    string_seven            db 5, 'seven', 7
+    string_eight            db 5, 'eight', 8
+    string_nine             db 4, 'nine', 9
+    string_numbers_end      db 0
+
+numbers_end:
 
                         db 64                               ; buffer length
     string_input        db 0                                ; read string length
