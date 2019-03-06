@@ -1,25 +1,25 @@
-; Piotr Szczygieł - Assemblery 2019
 ; Simple calculator
-format MZ                                       ; DOS MZ executable
-stack 80h                                       ; set stack size to 128 bytes
-entry main:start                                ; specify an application entry point
+; Piotr Szczygieł - Assemblery 2019
+format MZ                                   ; DOS MZ executable
+stack 32                                    ; set stack size to 32 bytes
+entry main:start                            ; specify an application entry point
 
 segment main
-start:
-    mov ax, word text
-    mov ds, ax
+start:                                      ; entry point
+    mov ax, word text                       ; show program
+    mov ds, ax                              ; where the data segment is
 
     mov dx, str_welcome
     call print_crlf
 
-    .loop:
+    .loop:                                  ; main program loop
         mov dx, str_prompt
         call print
 
         call read_input
 
-        mov si, user_input
-        mov di, command_exit
+        mov si, user_input                  ; terminate the program
+        mov di, command_exit                ; if user entered the 'exit'
         call str_compare
         je exit
 
@@ -38,63 +38,67 @@ start:
         jmp .loop
 
 
-; terminate the program
+; Terminate the program.
 ; AL - return code
 exit:
-    mov ah, 4ch
-    int 21h
+    mov ah, 4ch                             ; terminates the program by
+    int 21h                                 ; invoking DOS interruption
 
 
+; Display the calculated result.
 display_result:
-    mov dx, str_result
+    mov dx, str_result                      ; print the result prefix
     call print
 
-    cmp [result.sign], byte 0
-    je .display
+    cmp [result.sign], byte 0               ; jump straight to displaying
+    je .display                             ; if the number is positive
 
     .negative:
-        mov dx, str_negative_result
-        call print
+        mov dx, str_negative_result         ; otherwise display the
+        call print                          ; negative number prefix
 
     .display:
-        mov al, byte [result]
-        cmp al, byte 20
+        mov al, byte [result]               ; check if the number is lower
+        cmp al, byte 20                     ; or higher than 20
         jae .big
 
         .small:
-            mov di, numbers_twenty.start
-            call get_nth
-            mov dx, di
-            call print_crlf
+            mov di, numbers_twenty.start    ; for numbers lower than 20
+            call get_nth                    ; just print the result as
+            mov dx, di                      ; N-th index of the
+            call print_crlf                 ; numbers_twenty array
             ret
 
         .big:
-            call split_result
-            mov al, byte [result.tens]
-            sub al, byte 2
-            mov di, numbers_tens.start
-            call get_nth
-            mov dx, di
+            call split_result               ; for numbers bigger than 20
+            mov al, byte [result.tens]      ; first split the result into
+            sub al, byte 2                  ; tens and units
+            mov di, numbers_tens.start      ; and than do the same
+            call get_nth                    ; get the N-th index of the
+            mov dx, di                      ; tens array and print it
             call print
-            mov al, byte [result.units]
-            cmp al, 0
-            je .finish
-            mov dx, str_hyphen
+
+            mov al, byte [result.units]     ; if the units are 0
+            cmp al, 0                       ; we don't have to display
+            je .finish                      ; anything more
+
+            mov dx, str_hyphen              ; otherwise display a hyphen
             call print
-            mov di, numbers_ten.start
+
+            mov di, numbers_ten.start       ; display the units same way
             call get_nth
             mov dx, di
             call print
 
     .finish:
-        mov dx, str_crlf
+        mov dx, str_crlf                    ; end result with a new line
         call print
         ret
 
 
-; get N-th string from dollar delimited array
-; pass beginning of a array in DI, and index in AL
-; stores result in DI
+; Get N-th string from dollar delimited
+; array. DI - beginning of an array,
+; AL - element index. DI - result.
 get_nth:
     mov cl, 0
 
@@ -111,7 +115,8 @@ get_nth:
 
 
 
-; split resulting number into tens and units
+; Split resulting number into
+; tens and units.
 split_result:
     mov al, byte [result]
     xor ah, ah
@@ -122,7 +127,7 @@ split_result:
     ret
 
 
-; calculates the result of the expression
+; Calculate a result of the expression.
 calculate_result:
     mov [result.sign], byte 0
     mov al, byte [number.first]
@@ -159,9 +164,10 @@ calculate_result:
         ret
 
 
-; check if provided user input are actual two numbers
-; separated by operator, display error messages if not
-; set ZF if valid, unset if not
+; Check if provided user input are actual
+; two numbers separated by an operator.
+; Display error messages if not.
+; Set ZF if valid, unset otherwise.
 validate_parsed_input:
     cmp [number.first], byte 10
     je .invalid_first_number
@@ -187,9 +193,9 @@ validate_parsed_input:
         ret
 
 
-; parse word passed in SI with match table passed in DI
-; pass address terminating the table in DX
-; result will be stored in CX
+; Parse word passed in SI with match table
+; passed in DI. DX - address terminating
+; the table, CX - result.
 parse_word:
     mov bx, si
     mov cx, 0
@@ -211,8 +217,8 @@ parse_word:
         ret
 
 
-; seek string pointer specified in DI
-; to the address after the end of it
+; Seek string pointer specified in DI
+; to the address after the end of it.
 seek_after:
     cmp [di], byte '$'
     jne .not_dollar
@@ -225,7 +231,7 @@ seek_after:
         ret
 
 
-; parse all three words
+; Parse all three words.
 parse_input:
     mov si, words.first
     mov di, numbers_ten.start
@@ -247,8 +253,9 @@ parse_input:
     ret
 
 
-; check if all words are present after splitting them
-; set the ZF if they are valid, otherwise unset it
+; Check if all words are present after
+; splitting them. Set the ZF if they are
+; valid, otherwise unset it.
 validate_unparsed_input:
     cmp [words.first], byte '$'
     je .invalid
@@ -268,8 +275,7 @@ validate_unparsed_input:
         ret
 
 
-; split user input into separate words to be
-; stored at words.{first, second, third}
+; Split user input into separate words.
 split_input:
     mov di, words.first
     mov si, words.end
@@ -315,10 +321,10 @@ split_input:
                 jmp .loop
 
 
-; check if two dollar terminated strings are equal
-; SI - firsrt string
-; DI - second string
-; set ZF if equal
+; Check if two dollar terminated strings
+; are equal. SI - first string,
+; DI - second string. Set ZF if equal,
+; unset it otherwise.
 str_compare:
     .loop:
         mov al, byte [si]
@@ -338,8 +344,8 @@ str_compare:
         ret
 
 
-; print string to stdout, add newline
-; DX - dollar terminated string
+; Print string to stdout, add a newline.
+; DX - dollar terminated string.
 print_crlf:
     mov ah, 09h
     int 21h
@@ -349,17 +355,17 @@ print_crlf:
     ret
 
 
-; print string to stdout, without adding a newline
-; DX - dollar terminated string
+; Print string to stdout, without adding
+; a newline. DX - dollar terminated string
 print:
     mov ah, 09h
     int 21h
     ret
 
 
-; fills the buffer with dollar signs
-; DI - buffer address
-; SI - address of a first byte after the buffer
+; Fills the buffer with dollar signs.
+; DI - buffer address, SI - address of
+; a first byte after the buffer.
 clear_buffer:
     mov [di], byte '$'
     inc di
@@ -367,7 +373,7 @@ clear_buffer:
     jne clear_buffer
     ret
 
-; read user input into user_input buffer
+; Read user input into user_input buffer.
 read_input:
     mov si, user_input.end
     mov di, user_input
@@ -384,7 +390,8 @@ read_input:
     ret
 
 
-; convert user_input to dollar terminated string
+; Convert user_input to dollar terminated
+; string.
 user_input_to_dollar:
     mov cl, byte [user_input.len]
     xor ch, ch
@@ -398,7 +405,6 @@ user_input_to_dollar:
 
     .finish:
         ret
-
 
 
 segment text
