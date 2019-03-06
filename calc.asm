@@ -1,8 +1,8 @@
 ; Piotr Szczygieł - Assemblery 2019
 ; Simple calculator
-format MZ                                                   ; DOS MZ executable
-stack 80h                                                   ; set stack size to 128 bytes
-entry main:start                                            ; specify an application entry point
+format MZ                                       ; DOS MZ executable
+stack 80h                                       ; set stack size to 128 bytes
+entry main:start                                ; specify an application entry point
 
 segment main
 start:
@@ -33,6 +33,7 @@ start:
         call validate_parsed_input
         jne .loop
 
+        call calculate_result
         jmp .loop
 
 
@@ -43,6 +44,46 @@ exit:
     int 21h
 
 
+; calculates the result of the expression
+calculate_result:
+    mov [result.sign], byte 0
+    mov al, byte [number.first]
+    mov ah, byte [number.second]
+    cmp [operator], byte 0
+    je .add
+    cmp [operator], byte 1
+    je .sub
+    cmp [operator], byte 2
+    je .mul
+    jmp exit
+
+    .add:
+        add al, ah
+        jmp .finish
+
+    .sub:
+        sub al, ah
+        js .sub_negative
+        jmp .finish
+        .sub_negative:
+            mov [result.sign], byte 1
+            mov al, byte [number.first]
+            sub ah, al
+            mov al, ah
+            jmp .finish
+
+    .mul:
+        mov dl, ah
+        mul dl
+
+    .finish:
+        mov [result], al
+        ret
+
+
+; check if provided user input are actual two numbers
+; separated by operator, display error messages if not
+; set ZF if valid, unset if not
 validate_parsed_input:
     cmp [number.first], byte 10
     je .invalid_first_number
@@ -71,7 +112,6 @@ validate_parsed_input:
 ; parse word passed in SI with match table passed in DI
 ; pass address terminating the table in DX
 ; result will be stored in CL
-; CL = 10 means no match
 parse_word:
     mov bx, si
     mov cl, 0
@@ -319,3 +359,6 @@ number.first                rb 1
 number.second               rb 1
 
 operator                    rb 1
+
+result                      rb 1
+result.sign                 rb 1
