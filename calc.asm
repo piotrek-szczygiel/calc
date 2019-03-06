@@ -17,15 +17,23 @@ start:
         call print_no_crlf
 
         call read_input
+
+        mov si, user_input
+        mov di, command_exit
+        call str_compare
+        je exit
+
         call split_input
 
-        call validate_input
+        call validate_unparsed_input
         jne .loop
 
         call parse_input
 
-    mov al, 0
-    jmp exit
+        call validate_parsed_input
+        jne .loop
+
+        jmp .loop
 
 
 ; terminate the program
@@ -33,6 +41,31 @@ start:
 exit:
     mov ah, 4ch
     int 21h
+
+
+validate_parsed_input:
+    cmp [number.first], byte 10
+    je .invalid_first_number
+    cmp [number.second], byte 10
+    je .invalid_second_number
+    cmp [operator], byte 3
+    je .invalid_operator
+
+    cmp al, al
+    ret
+
+    .invalid_first_number:
+        mov dx, str_invalid_first_number
+        jmp .invalid
+    .invalid_second_number:
+        mov dx, str_invalid_second_number
+        jmp .invalid
+    .invalid_operator:
+        mov dx, str_invalid_operator
+    .invalid:
+        call print
+        cmp sp, bp
+        ret
 
 
 ; parse word passed in SI with match table passed in DI
@@ -92,7 +125,7 @@ parse_input:
 
 ; check if all words are present after splitting them
 ; set the ZF if they are valid, otherwise unset it
-validate_input:
+validate_unparsed_input:
     cmp [words.first], byte '$'
     je .invalid
     cmp [words.second], byte '$'
@@ -245,39 +278,44 @@ user_input_to_dollar:
 
 
 segment text
-str_crlf            db 13, 10, '$'
-str_welcome         db 'Simple calculator.', 13, 10, '$'
-str_prompt          db 'Enter expression: $'
-str_invalid_input   db 'Invalid input!$'
+str_crlf                    db 13, 10, '$'
+str_welcome                 db 'Simple calculator.', 13, 10, '$'
+str_prompt                  db 'Enter expression: $'
+str_invalid_input           db 'Invalid input!$'
+str_invalid_first_number    db 'Invalid first number!$'
+str_invalid_second_number   db 'Invalid second number!$'
+str_invalid_operator        db 'Invalid operator!$'
 
-numbers_small       db 'zero$'
-                    db 'one$'
-                    db 'two$'
-                    db 'three$'
-                    db 'four$'
-                    db 'five$'
-                    db 'six$'
-                    db 'seven$'
-                    db 'eight$'
-                    db 'nine$'
+command_exit                db 'exit$'
+
+numbers_small               db 'zero$'
+                            db 'one$'
+                            db 'two$'
+                            db 'three$'
+                            db 'four$'
+                            db 'five$'
+                            db 'six$'
+                            db 'seven$'
+                            db 'eight$'
+                            db 'nine$'
 numbers_small.end:
 
-operators           db 'plus$'
-                    db 'minus$'
-                    db 'times$'
+operators                   db 'plus$'
+                            db 'minus$'
+                            db 'times$'
 operators.end:
 
-user_input.dos      db 32
-user_input.len      db 0
-user_input          rb 32
+user_input.dos              db 32
+user_input.len              db 0
+user_input                  rb 32
 user_input.end:
 
-words.first         rb 32
-words.second        rb 32
-words.third         rb 32
+words.first                 rb 32
+words.second                rb 32
+words.third                 rb 32
 words.end:
 
-number.first        rb 1
-number.second       rb 1
+number.first                rb 1
+number.second               rb 1
 
-operator            rb 1
+operator                    rb 1
