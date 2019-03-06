@@ -18,7 +18,11 @@ start:
 
         call read_input
         call split_input
+
         call validate_input
+        jne .loop
+
+        call parse_input
 
     mov al, 0
     jmp exit
@@ -31,7 +35,63 @@ exit:
     int 21h
 
 
+; parse word passed in SI with match table passed in DI
+; pass address terminating the table in DX
+; result will be stored in CL
+; CL = 10 means no match
+parse_word:
+    mov bx, si
+    mov cl, 0
+
+    .loop:
+        cmp di, dx
+        je .finish
+
+        mov si, bx
+        call str_compare
+        je .finish
+
+        .seek:
+            cmp [di], byte '$'
+            jne .not_dollar
+            jmp .dollar
+            .not_dollar:
+                inc di
+                jmp .seek
+            .dollar:
+                inc di
+
+        inc cl
+        jmp .loop
+
+    .finish:
+        ret
+
+
+; parse all three words
+parse_input:
+    mov si, words.first
+    mov di, numbers_small
+    mov dx, numbers_small.end
+    call parse_word
+    mov [number.first], byte cl
+
+    mov si, words.third
+    mov di, numbers_small
+    mov dx, numbers_small.end
+    call parse_word
+    mov [number.second], byte cl
+
+    mov si, words.second
+    mov di, operators
+    mov dx, operators.end
+    call parse_word
+    mov [operator], byte cl
+    ret
+
+
 ; check if all words are present after splitting them
+; set the ZF if they are valid, otherwise unset it
 validate_input:
     cmp [words.first], byte '$'
     je .invalid
@@ -39,11 +99,15 @@ validate_input:
     je .invalid
     cmp [words.third], byte '$'
     je .invalid
+
+    cmp al, al
     ret
 
     .invalid:
         mov dx, str_invalid_input
         call print
+
+        cmp sp, bp
         ret
 
 
@@ -196,6 +260,12 @@ numbers_small       db 'zero$'
                     db 'seven$'
                     db 'eight$'
                     db 'nine$'
+numbers_small.end:
+
+operators           db 'plus$'
+                    db 'minus$'
+                    db 'times$'
+operators.end:
 
 user_input.dos      db 32
 user_input.len      db 0
@@ -206,3 +276,8 @@ words.first         rb 32
 words.second        rb 32
 words.third         rb 32
 words.end:
+
+number.first        rb 1
+number.second       rb 1
+
+operator            rb 1
