@@ -63,7 +63,7 @@ display_result:
         jae .big
 
         .small:
-            mov di, numbers_twenty.start    ; for numbers lower than 20
+            mov di, numbers.start           ; for numbers lower than 20
             call get_nth                    ; just print the result as
             mov dx, di                      ; N-th index of the
             call print_crlf                 ; numbers_twenty array
@@ -85,7 +85,7 @@ display_result:
             mov dx, str_hyphen              ; otherwise display a hyphen
             call print
 
-            mov di, numbers_ten.start       ; display the units same way
+            mov di, numbers.start           ; display the units same way
             call get_nth
             mov dx, di
             call print
@@ -100,45 +100,48 @@ display_result:
 ; array. DI - beginning of an array,
 ; AL - element index. DI - result.
 get_nth:
-    mov cl, 0
+    mov cl, 0                               ; element counter
 
     .loop:
-        cmp al, cl
+        cmp al, cl                          ; if N == counter
         je .found
 
-        call seek_after
+        call seek_after                     ; seek DI to next element
         inc cl
         jmp .loop
 
-    .found:
-        ret
+    .found:                                 ; the result is just returned
+        ret                                 ; in the DI
 
 
 
 ; Split resulting number into
 ; tens and units.
 split_result:
-    mov al, byte [result]
+    mov al, byte [result]                   ; move result into AX
     xor ah, ah
-    mov bx, 10
+
+    mov bx, 10                              ; divide the result by 10
     div bl
-    mov [result.tens], byte al
+
+    mov [result.tens], byte al              ; store tens and units
     mov [result.units], byte ah
     ret
 
 
 ; Calculate a result of the expression.
 calculate_result:
-    mov [result.sign], byte 0
-    mov al, byte [number.first]
+    mov [result.sign], byte 0               ; clear the result sign
+
+    mov al, byte [number.first]             ; get both numbers
     mov ah, byte [number.second]
-    cmp [operator], byte 0
+
+    cmp [operator], byte 0                  ; perform operations accordingly
     je .add
     cmp [operator], byte 1
     je .sub
     cmp [operator], byte 2
     je .mul
-    jmp exit
 
     .add:
         add al, ah
@@ -146,20 +149,21 @@ calculate_result:
 
     .sub:
         sub al, ah
-        js .sub_negative
+        js .sub_negative                    ; if SIGN flag is set
         jmp .finish
+
         .sub_negative:
-            mov [result.sign], byte 1
+            mov [result.sign], byte 1       ; set the result sign
             mov al, byte [number.first]
-            sub ah, al
-            mov al, ah
+            sub ah, al                      ; switch the numbers in subtraction
+            mov al, ah                      ; to make the result positive
             jmp .finish
 
     .mul:
         mov dl, ah
         mul dl
 
-    .finish:
+    .finish:                                ; move the result into memory
         mov [result], al
         ret
 
@@ -169,14 +173,14 @@ calculate_result:
 ; Display error messages if not.
 ; Set ZF if valid, unset otherwise.
 validate_parsed_input:
-    cmp [number.first], byte 10
-    je .invalid_first_number
-    cmp [number.second], byte 10
+    cmp [number.first], byte 10             ; if any of the provided words
+    je .invalid_first_number                ; are invalid, show corresponding
+    cmp [number.second], byte 10            ; error messages
     je .invalid_second_number
     cmp [operator], byte 3
     je .invalid_operator
 
-    cmp al, al
+    cmp al, al                              ; set the ZF flag
     ret
 
     .invalid_first_number:
@@ -188,8 +192,8 @@ validate_parsed_input:
     .invalid_operator:
         mov dx, str_invalid_operator
     .invalid:
-        call print_crlf
-        cmp sp, bp
+        call print_crlf                     ; display new line
+        cmp sp, bp                          ; unset the ZF flag
         ret
 
 
@@ -197,19 +201,18 @@ validate_parsed_input:
 ; passed in DI. DX - address terminating
 ; the table, CX - result.
 parse_word:
-    mov bx, si
-    mov cx, 0
+    mov bx, si                              ; remember the word address
+    mov cx, 0                               ; element counter
 
     .loop:
-        cmp di, dx
-        je .finish
+        cmp di, dx                          ; if we reached the end
+        je .finish                          ; of an array
 
-        mov si, bx
-        call str_compare
-        je .finish
+        mov si, bx                          ; compare word with a current
+        call str_compare                    ; element in an array
+        je .finish                          ; and finish on success
 
-        call seek_after
-
+        call seek_after                     ; go to the next array element
         inc cx
         jmp .loop
 
@@ -220,33 +223,34 @@ parse_word:
 ; Seek string pointer specified in DI
 ; to the address after the end of it.
 seek_after:
-    cmp [di], byte '$'
-    jne .not_dollar
-    jmp .dollar
-    .not_dollar:
-        inc di
-        jmp seek_after
+    cmp [di], byte '$'                      ; check if current char is a dollar
+    jne .other
+
     .dollar:
-        inc di
-        ret
+        inc di                              ; if yes, than seek to the next
+        ret                                 ; character and return
+
+    .other:
+        inc di                              ; otherwise seek to the next
+        jmp seek_after                      ; character and loop
 
 
 ; Parse all three words.
 parse_input:
-    mov si, words.first
-    mov di, numbers_ten.start
-    mov dx, numbers_ten.end
+    mov si, words.first                     ; parse the first word
+    mov di, numbers.start                   ; on the numbers array
+    mov dx, numbers.ten_end
     call parse_word
     mov [number.first], byte cl
 
-    mov si, words.third
-    mov di, numbers_ten.start
-    mov dx, numbers_ten.end
+    mov si, words.third                     ; parse the third word
+    mov di, numbers.start                   ; on the numbers array
+    mov dx, numbers.ten_end
     call parse_word
     mov [number.second], byte cl
 
-    mov si, words.second
-    mov di, operators.start
+    mov si, words.second                    ; parse the second word
+    mov di, operators.start                 ; on the operators
     mov dx, operators.end
     call parse_word
     mov [operator], byte cl
@@ -257,68 +261,69 @@ parse_input:
 ; splitting them. Set the ZF if they are
 ; valid, otherwise unset it.
 validate_unparsed_input:
-    cmp [words.first], byte '$'
-    je .invalid
-    cmp [words.second], byte '$'
+    cmp [words.first], byte '$'             ; if the first character is
+    je .invalid                             ; a dollar sign - the word is
+    cmp [words.second], byte '$'            ; not present
     je .invalid
     cmp [words.third], byte '$'
     je .invalid
 
-    cmp al, al
+    cmp al, al                              ; set the ZF and return
     ret
 
     .invalid:
-        mov dx, str_invalid_input
+        mov dx, str_invalid_input           ; display invalid input message
         call print_crlf
 
-        cmp sp, bp
+        cmp sp, bp                          ; unset the ZF and return
         ret
 
 
 ; Split user input into separate words.
 split_input:
-    mov di, words.first
-    mov si, words.end
+    mov si, words.first                     ; clear the words array
+    mov di, words.end
     call clear_buffer
 
-    mov si, user_input
-    mov di, words.first
-    mov cl, 1
+    mov si, user_input                      ; input character iterator
+    mov di, words.first                     ; address to parsed destination
+    mov cl, 1                               ; indicates which word is parsed
     .loop:
-        mov al, byte [si]
-        cmp al, '$'
+        mov al, byte [si]                   ; check if we reached the end of
+        cmp al, '$'                         ; an user input
         je .dollar
 
-        cmp al, ' '
-        je .space
+        cmp al, ' '                         ; check if we reached the end of
+        je .space                           ; a word
 
-        mov [di], al
+        mov [di], al                        ; otherwise copy current character
 
-        inc si
-        inc di
+        inc si                              ; move to the next character
+        inc di                              ; and loop
         jmp .loop
 
         .dollar:
-            mov [di], byte '$'
-            ret
+            mov [di], byte '$'              ; terminate the last word
+            ret                             ; and return
 
         .space:
-            inc si
-            mov [di], byte '$'
-            cmp cl, 1
+            inc si                          ; skip the space
+            mov [di], byte '$'              ; terminate current word
+
+            cmp cl, 1                       ; check which word is parsed
             je .second
             cmp cl, 2
             je .third
             ret
 
             .second:
-                mov di, words.second
-                jmp .iterate
+                mov di, words.second        ; switch the destination address
+                jmp .iterate                ; to the next word
             .third:
                 mov di, words.third
             .iterate:
                 inc cl
-                jmp .loop
+                jmp .loop                   ; and loop
 
 
 ; Check if two dollar terminated strings
@@ -330,81 +335,76 @@ str_compare:
         mov al, byte [si]
         mov ah, byte [di]
 
-        cmp al, ah
-        jne .finish
+        cmp al, ah                          ; compare both characters
+        jne .finish                         ; finish if they are different
 
-        cmp al, byte '$'
-        je .finish
+        cmp al, byte '$'                    ; if current character is dollar
+        je .finish                          ; and all previous were equal
 
-        inc si
-        inc di
+        inc si                              ; move to the next character
+        inc di                              ; and loop
         jmp .loop
 
     .finish:
-        ret
+        ret                                 ; return with ZF set accordingly
 
 
 ; Print string to stdout, add a newline.
 ; DX - dollar terminated string.
 print_crlf:
-    mov ah, 09h
-    int 21h
-
-    mov dx, str_crlf
-    int 21h
+    call print                              ; print dollar terminated string
+    mov dx, str_crlf                        ; passed in DX, than print a
+    int 21h                                 ; new line
     ret
 
 
 ; Print string to stdout, without adding
 ; a newline. DX - dollar terminated string
 print:
-    mov ah, 09h
-    int 21h
-    ret
+    mov ah, 09h                             ; print dollar terminated string
+    int 21h                                 ; passed in DX by invoking
+    ret                                     ; DOS interruption
 
 
 ; Fills the buffer with dollar signs.
-; DI - buffer address, SI - address of
+; SI - buffer address, DI - address of
 ; a first byte after the buffer.
 clear_buffer:
-    mov [di], byte '$'
-    inc di
-    cmp si, di
-    jne clear_buffer
+    mov [si], byte '$'                      ; put a dollar sign
+    inc si                                  ; go to next memory address
+
+    cmp si, di                              ; stop if the address reached
+    jne clear_buffer                        ; provided limit
     ret
 
 ; Read user input into user_input buffer.
 read_input:
-    mov si, user_input.end
-    mov di, user_input
+    mov si, user_input                      ; clear the user input buffer
+    mov di, user_input.end                  ; from previous readings
     call clear_buffer
 
-    mov dx, user_input.dos
-    mov ah, 0ah
-    int 21h
+    mov dx, user_input.dos                  ; read the user input into
+    mov ah, 0ah                             ; special DX buffer by invoking
+    int 21h                                 ; DOS interrupt
 
-    call user_input_to_dollar
-
-    mov dx, str_crlf
+    mov dx, str_crlf                        ; print new line
     call print
-    ret
+
+    call user_input_to_dollar               ; convert the user input into
+    ret                                     ; dollar terminated string
 
 
 ; Convert user_input to dollar terminated
 ; string.
 user_input_to_dollar:
-    mov cl, byte [user_input.len]
+    mov cl, byte [user_input.len]           ; get the user input length
     xor ch, ch
-    cmp cx, 0
-    je .finish
 
-    mov bx, user_input
-    add bx, cx
+    mov bx, user_input                      ; offset the address by input
+    add bx, cx                              ; length
 
-    mov [bx], byte '$'
-
-    .finish:
-        ret
+    mov [bx], byte '$'                      ; place dollar at the end
+    ret                                     ; of a string
 
 
 segment text
@@ -423,8 +423,7 @@ str_crlf                    db 13, 10, '$'
 
 command_exit                db 'exit$'
 
-numbers_twenty.start:
-numbers_ten.start:          db 'zero$'
+numbers.start:              db 'zero$'
                             db 'one$'
                             db 'two$'
                             db 'three$'
@@ -434,8 +433,7 @@ numbers_ten.start:          db 'zero$'
                             db 'seven$'
                             db 'eight$'
                             db 'nine$'
-
-numbers_ten.end:            db 'ten$'
+numbers.ten_end:            db 'ten$'
                             db 'eleven$'
                             db 'twelve$'
                             db 'thirteen$'
@@ -444,8 +442,7 @@ numbers_ten.end:            db 'ten$'
                             db 'sixteen$'
                             db 'seventeen$'
                             db 'eighteen$'
-                            ; 19 is impossible to obtain
-numbers_twenty.end:
+numbers.end:                ; 19 is impossible to obtain
 
 numbers_tens.start:         db 'twenty$'
                             db 'thirty$'
@@ -454,17 +451,16 @@ numbers_tens.start:         db 'twenty$'
                             db 'sixty$'
                             db 'seventy$'
                             db 'eighty$'
-                            ; 81 is maximum result possible to obtain
-numbers_tens.end:
+numbers_tens.end:           ; 81 is maximum result possible to obtain
 
 operators.start:            db 'plus$'
                             db 'minus$'
                             db 'times$'
 operators.end:
 
-user_input.dos              db 20
-user_input.len              db 0
-user_input                  rb 20
+user_input.dos              db 20           ; maximum input length
+user_input.len              db 0            ; actual input length
+user_input                  rb 20           ; input buffer
 user_input.end:
 
 words.first                 rb 20
