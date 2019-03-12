@@ -1,3 +1,3 @@
-@echo off
-cwsdpmi
-fasm calc.asm
+@ECHO OFF
+CWSDPMI
+FASM CALC.ASM
