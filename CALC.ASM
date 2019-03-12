@@ -9,23 +9,23 @@ start:                                      ; entry point
     mov ax, word text                       ; show program
     mov ds, ax                              ; where the data segment is
 
-    mov dx, str_welcome
+    mov dx, word str_welcome
     call print_crlf
 
     .loop:                                  ; main program loop
-        mov dx, str_prompt
+        mov dx, word str_prompt
         call print
 
         call read_input
 
-        mov si, user_input                  ; terminate the program
-        mov di, command_exit                ; if user entered the 'exit'
+        mov si, word user_input             ; terminate the program
+        mov di, word command_exit           ; if user entered the 'exit'
         call str_compare
         je exit
 
         call split_input
 
-        call validate_unparsed_input
+        call validate_three_words
         jne .loop
 
         call parse_input
@@ -46,14 +46,14 @@ exit:
 
 ; Display the calculated result.
 display_result:
-    mov dx, str_result                      ; print the result prefix
+    mov dx, word str_result                 ; print the result prefix
     call print
 
     cmp [result.sign], byte 0               ; jump straight to displaying
     je .display                             ; if the number is positive
 
     .negative:
-        mov dx, str_negative_result         ; otherwise display the
+        mov dx, word str_negative_result    ; otherwise display the
         call print                          ; negative number prefix
 
     .display:
@@ -62,7 +62,7 @@ display_result:
         jae .big
 
         .small:
-            mov di, numbers.start           ; for numbers lower than 20
+            mov di, word numbers.start      ; for numbers lower than 20
             call get_nth                    ; just print the result as
             mov dx, di                      ; N-th index of the
             call print_crlf                 ; numbers_twenty array
@@ -72,7 +72,7 @@ display_result:
             call split_result               ; for numbers bigger than 20
             mov al, byte [result.tens]      ; first split the result into
             sub al, byte 2                  ; tens and units
-            mov di, numbers_tens.start      ; and than do the same
+            mov di, word numbers_tens.start ; and than do the same
             call get_nth                    ; get the N-th index of the
             mov dx, di                      ; tens array and print it
             call print
@@ -81,16 +81,16 @@ display_result:
             cmp al, 0                       ; we don't have to display
             je .finish                      ; anything more
 
-            mov dx, str_hyphen              ; otherwise display a hyphen
+            mov dx, word str_hyphen         ; otherwise display a hyphen
             call print
 
-            mov di, numbers.start           ; display the units same way
+            mov di, word numbers.start      ; display the units same way
             call get_nth
             mov dx, di
             call print
 
     .finish:
-        mov dx, str_crlf                    ; end result with a new line
+        mov dx, word str_crlf               ; end result with a new line
         call print
         ret
 
@@ -163,7 +163,7 @@ calculate_result:
         mul dl
 
     .finish:                                ; move the result into memory
-        mov [result], al
+        mov [result], byte al
         ret
 
 
@@ -183,13 +183,13 @@ validate_parsed_input:
     ret
 
     .invalid_first_number:
-        mov dx, str_invalid_first_number
+        mov dx, word str_invalid_first_number
         jmp .invalid
     .invalid_second_number:
-        mov dx, str_invalid_second_number
+        mov dx, word str_invalid_second_number
         jmp .invalid
     .invalid_operator:
-        mov dx, str_invalid_operator
+        mov dx, word str_invalid_operator
     .invalid:
         call print_crlf                     ; display new line
         cmp sp, bp                          ; unset the ZF flag
@@ -236,21 +236,21 @@ seek_after:
 
 ; Parse all three words.
 parse_input:
-    mov si, words.first                     ; parse the first word
-    mov di, numbers.start                   ; on the numbers array
-    mov dx, numbers.ten_end
+    mov si, word words.first                ; parse the first word
+    mov di, word numbers.start              ; on the numbers array
+    mov dx, word numbers.ten_end
     call parse_word
     mov [number.first], byte cl
 
-    mov si, words.third                     ; parse the third word
-    mov di, numbers.start                   ; on the numbers array
-    mov dx, numbers.ten_end
+    mov si, word words.third                ; parse the third word
+    mov di, word numbers.start              ; on the numbers array
+    mov dx, word numbers.ten_end
     call parse_word
     mov [number.second], byte cl
 
-    mov si, words.second                    ; parse the second word
-    mov di, operators.start                 ; on the operators
-    mov dx, operators.end
+    mov si, word words.second               ; parse the second word
+    mov di, word operators.start            ; on the operators
+    mov dx, word operators.end
     call parse_word
     mov [operator], byte cl
     ret
@@ -259,7 +259,7 @@ parse_input:
 ; Check if all words are present after
 ; splitting them. Set the ZF if they are
 ; valid, otherwise unset it.
-validate_unparsed_input:
+validate_three_words:
     cmp [words.first], byte '$'             ; if the first character is
     je .invalid                             ; a dollar sign - the word is
     cmp [words.second], byte '$'            ; not present
@@ -271,7 +271,7 @@ validate_unparsed_input:
     ret
 
     .invalid:
-        mov dx, str_invalid_input           ; display invalid input message
+        mov dx, word str_invalid_input      ; display invalid input message
         call print_crlf
 
         cmp sp, bp                          ; unset the ZF and return
@@ -280,13 +280,21 @@ validate_unparsed_input:
 
 ; Split user input into separate words.
 split_input:
-    mov si, words.first                     ; clear the words array
-    mov di, words.end
+    mov si, word words.first                ; clear the words array
+    mov di, word words.end
     call clear_buffer
 
-    mov si, user_input                      ; input character iterator
-    mov di, words.first                     ; address to parsed destination
+    mov si, word user_input                 ; input character iterator
+    mov di, word words.first                ; address to parsed destination
     mov cl, 1                               ; indicates which word is parsed
+
+    .trim:                                  ; trim spaces at the beginning
+        mov al, byte [si]
+        cmp al, ' '
+        jne .loop
+        inc si
+        jmp .trim
+
     .loop:
         mov al, byte [si]                   ; check if we reached the end of
         cmp al, '$'                         ; an user input
@@ -306,7 +314,11 @@ split_input:
             ret                             ; and return
 
         .space:
-            inc si                          ; skip the space
+            inc si                          ; skip the spaces
+            mov al, byte [si]
+            cmp al, ' '
+            je .space
+
             mov [di], byte '$'              ; terminate current word
 
             cmp cl, 1                       ; check which word is parsed
@@ -316,10 +328,10 @@ split_input:
             ret
 
             .second:
-                mov di, words.second        ; switch the destination address
+                mov di, word words.second   ; switch the destination address
                 jmp .iterate                ; to the next word
             .third:
-                mov di, words.third
+                mov di, word words.third
             .iterate:
                 inc cl
                 jmp .loop                   ; and loop
@@ -352,7 +364,7 @@ str_compare:
 ; DX - dollar terminated string.
 print_crlf:
     call print                              ; print dollar terminated string
-    mov dx, str_crlf                        ; passed in DX, than print a
+    mov dx, word str_crlf                        ; passed in DX, than print a
     int 21h                                 ; new line
     ret
 
@@ -378,15 +390,15 @@ clear_buffer:
 
 ; Read user input into user_input buffer.
 read_input:
-    mov si, user_input                      ; clear the user input buffer
-    mov di, user_input.end                  ; from previous readings
+    mov si, word user_input                 ; clear the user input buffer
+    mov di, word user_input.end             ; from previous readings
     call clear_buffer
 
-    mov dx, user_input.dos                  ; read the user input into
+    mov dx, word user_input.dos             ; read the user input into
     mov ah, 0ah                             ; special DX buffer by invoking
     int 21h                                 ; DOS interrupt
 
-    mov dx, str_crlf                        ; print new line
+    mov dx, word str_crlf                   ; print new line
     call print
 
     call user_input_to_dollar               ; convert the user input into
@@ -399,7 +411,7 @@ user_input_to_dollar:
     mov cl, byte [user_input.len]           ; get the user input length
     xor ch, ch
 
-    mov bx, user_input                      ; offset the address by input
+    mov bx, word user_input                 ; offset the address by input
     add bx, cx                              ; length
 
     mov [bx], byte '$'                      ; place dollar at the end
@@ -457,14 +469,14 @@ operators.start:            db 'plus$'
                             db 'times$'
 operators.end:
 
-user_input.dos              db 20           ; maximum input length
+user_input.dos              db 64           ; maximum input length
 user_input.len              db 0            ; actual input length
-user_input                  rb 20           ; input buffer
+user_input                  rb 64           ; input buffer
 user_input.end:
 
-words.first                 rb 20
-words.second                rb 20
-words.third                 rb 20
+words.first                 rb 64
+words.second                rb 64
+words.third                 rb 64
 words.end:
 
 number.first                rb 1
