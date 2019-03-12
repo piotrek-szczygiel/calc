@@ -1,7 +1,7 @@
 ; Simple calculator
 ; Piotr Szczygieł - Assemblery 2019
 format MZ                                   ; DOS MZ executable
-stack 32                                    ; set stack size to 32 bytes
+stack 100h                                  ; set stack size to 256 bytes
 entry main:start                            ; specify an application entry point
 
 segment main
@@ -38,10 +38,9 @@ start:                                      ; entry point
         jmp .loop
 
 
-; Terminate the program.
-; AL - return code
+; Terminate the program with 0 exit code.
 exit:
-    mov ah, 4ch                             ; terminates the program by
+    mov ax, 4c00h                           ; terminates the program by
     int 21h                                 ; invoking DOS interruption
 
 
