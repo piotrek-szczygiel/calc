@@ -1,13 +1,17 @@
+; vim: syntax=fasm
 ; Simple calculator
 ; Piotr Szczygieł - Assemblery 2019
 format MZ                                   ; DOS MZ executable
-stack 100h                                  ; set stack size to 256 bytes
 entry main:start                            ; specify an application entry point
 
 segment main
-start:                                      ; entry point
-    mov ax, word text                       ; show program
-    mov ds, ax                              ; where the data segment is
+start:
+    mov ax, word stack1                     ; point program where the
+    mov ss, ax                              ; stack segment is
+    mov sp, word stack1_end
+
+    mov ax, word text1                      ; point program where the
+    mov ds, ax                              ; data segment is
 
     mov dx, word str_welcome
     call print_crlf
@@ -418,7 +422,7 @@ user_input_to_dollar:
     ret                                     ; of a string
 
 
-segment text
+segment text1
 str_welcome                 db 'Simple ASM calculator', 13, 10
                             db 'Piotr Szczygiel 2019', 13, 10
                             db  'Type exit to terminate the program$'
@@ -488,3 +492,8 @@ result                      rb 1
 result.sign                 rb 1
 result.tens                 rb 1
 result.units                rb 1
+
+segment stack1
+rb 127
+stack1_end:
+rb 1
