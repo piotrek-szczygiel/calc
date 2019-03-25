@@ -1,11 +1,14 @@
-calc.exe: calc.asm
-	fasm calc.asm
+NAME := calc
+OUT  := $(NAME).exe
+
+$(OUT): $(NAME).asm
+	fasm $(NAME).asm
 
 clean:
-	rm calc.exe
+	rm $(OUT)
 
-test: calc.exe
-	dosbox calc.exe
+test: $(OUT)
+	dosbox "$(OUT)"
 
-debug: calc.exe
-	dosbox .
+debug: $(OUT)
+	dosbox -c "mount c ." -c "d:\td.exe c:\$(OUT)"
